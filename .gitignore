@@ -60,7 +60,6 @@ next-env.d.ts
 #misc
 /_backup
 /.idea
-/docs
 
 # Editor directories and files
 ._*
