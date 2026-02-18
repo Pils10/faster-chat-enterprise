@@ -309,7 +309,7 @@ export const dbUtils = {
    */
   createOIDCUser(username, oidcSub, oidcProvider, role = "member") {
     const stmt = db.prepare(
-      "INSERT INTO users (username, password_hash, role, oidc_sub, oidc_provider, created_at, created_by) VALUES (?, NULL, ?, ?, ?, ?, NULL)"
+      "INSERT INTO users (username, password_hash, role, oidc_sub, oidc_provider, created_at, created_by) VALUES (?, '', ?, ?, ?, ?, NULL)"
     );
     const result = stmt.run(username, role, oidcSub, oidcProvider, Date.now());
     return result.lastInsertRowid;

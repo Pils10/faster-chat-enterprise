@@ -166,6 +166,11 @@ authRouter.post("/login", async (c) => {
       return c.json({ error: "Invalid credentials" }, HTTP_STATUS.UNAUTHORIZED);
     }
 
+    // Check if user is OIDC-only (no password)
+    if (!user.password_hash || user.password_hash === "") {
+      return c.json({ error: "Please use SSO to sign in" }, HTTP_STATUS.UNAUTHORIZED);
+    }
+
     // Verify password
     const valid = await verifyPassword(user.password_hash, password);
     if (!valid) {
