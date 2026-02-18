@@ -6,10 +6,23 @@ export const useAuthState = create((set, get) => ({
   user: null,
   isLoading: true,
   error: null,
+  oidcEnabled: false,
 
   setUser: (user) => set({ user, error: null }),
   setError: (error) => set({ error }),
   clearError: () => set({ error: null }),
+  setOIDCEnabled: (enabled) => set({ oidcEnabled: enabled }),
+
+  checkOIDCConfig: async () => {
+    try {
+      const data = await authClient.getOIDCConfig();
+      set({ oidcEnabled: data.enabled });
+      return data.enabled;
+    } catch (error) {
+      set({ oidcEnabled: false });
+      return false;
+    }
+  },
 
   checkSession: async () => {
     set({ isLoading: true, error: null });
@@ -27,6 +40,30 @@ export const useAuthState = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await authClient.login(username, password);
+      set({ user: data.user, isLoading: false });
+      return data.user;
+    } catch (error) {
+      set({ user: null, isLoading: false, error: error.message });
+      throw error;
+    }
+  },
+
+  loginWithOIDC: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await authClient.initiateOIDCLogin();
+      // Redirect to OIDC provider
+      window.location.href = data.authUrl;
+    } catch (error) {
+      set({ isLoading: false, error: error.message });
+      throw error;
+    }
+  },
+
+  handleOIDCCallback: async (searchParams) => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await authClient.handleOIDCCallback(searchParams);
       set({ user: data.user, isLoading: false });
       return data.user;
     } catch (error) {

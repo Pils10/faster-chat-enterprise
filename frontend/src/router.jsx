@@ -14,6 +14,7 @@ import { lazy, Suspense, useEffect } from "preact/compat";
 
 // Lazy load page components
 const Login = lazy(() => import("@/pages/public/Login"));
+const OIDCCallback = lazy(() => import("@/pages/public/OIDCCallback"));
 const Chat = lazy(() => import("@/pages/authenticated/Chat"));
 const Admin = lazy(() => import("@/pages/authenticated/Admin"));
 const Settings = lazy(() => import("@/pages/authenticated/Settings"));
@@ -69,6 +70,16 @@ const loginRoute = createRoute({
   component: () => (
     <Suspense fallback={<LoadingSpinner />}>
       <Login />
+    </Suspense>
+  ),
+});
+
+const oidcCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/auth/oidc/callback",
+  component: () => (
+    <Suspense fallback={<LoadingSpinner />}>
+      <OIDCCallback />
     </Suspense>
   ),
 });
@@ -151,6 +162,7 @@ const folderRoute = createRoute({
 // Route Tree
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  oidcCallbackRoute,
   protectedRoute.addChildren([
     indexRoute,
     chatRoute,

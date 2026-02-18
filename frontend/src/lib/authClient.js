@@ -49,4 +49,26 @@ export const authClient = {
       return { user: null };
     }
   },
+
+  async getOIDCConfig() {
+    try {
+      return await authFetch("/oidc/config", {
+        method: "GET",
+      });
+    } catch (error) {
+      return { enabled: false };
+    }
+  },
+
+  async initiateOIDCLogin() {
+    return authFetch("/oidc/login", {
+      method: "GET",
+    });
+  },
+
+  async handleOIDCCallback(params) {
+    return authFetch(`/oidc/callback?${params}`, {
+      method: "GET",
+    });
+  },
 };

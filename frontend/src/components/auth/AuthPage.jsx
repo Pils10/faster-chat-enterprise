@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useState, useEffect } from "preact/hooks";
 import { useAuthState } from "@/state/useAuthState";
 import { Button } from "@/components/ui/button";
 
@@ -8,7 +8,12 @@ const AuthPage = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const { login, register, isLoading, error, clearError } = useAuthState();
+  const { login, register, loginWithOIDC, checkOIDCConfig, isLoading, error, clearError, oidcEnabled } = useAuthState();
+
+  // Check if OIDC is enabled on mount
+  useEffect(() => {
+    checkOIDCConfig();
+  }, [checkOIDCConfig]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,6 +32,14 @@ const AuthPage = () => {
       // Auth state will update and Login component will handle redirect
     } catch (err) {
       console.error("Auth error:", err);
+    }
+  };
+
+  const handleOIDCLogin = async () => {
+    try {
+      await loginWithOIDC();
+    } catch (err) {
+      console.error("OIDC login error:", err);
     }
   };
 
@@ -113,6 +126,25 @@ const AuthPage = () => {
               {isLoading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
             </Button>
           </form>
+
+          {oidcEnabled && isLogin && (
+            <>
+              <div className="my-4 flex items-center">
+                <div className="border-theme-surface flex-1 border-t"></div>
+                <span className="text-theme-text-muted px-3 text-sm">or</span>
+                <div className="border-theme-surface flex-1 border-t"></div>
+              </div>
+
+              <Button
+                type="button"
+                onClick={handleOIDCLogin}
+                color="gray"
+                className="w-full"
+                disabled={isLoading}>
+                Sign in with SSO
+              </Button>
+            </>
+          )}
 
           <div className="mt-6 text-center">
             <button
