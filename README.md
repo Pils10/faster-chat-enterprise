@@ -60,6 +60,7 @@ Connect to OpenAI, Anthropic, Groq, Mistral, or run completely offline with [Oll
 
 **Administration**
 - 🔐 Multi-user authentication with role-based access (admin/member/readonly)
+- 🔓 **OIDC/SSO Support** - Optional single sign-on with any OIDC provider (Keycloak, Okta, Auth0, Azure AD, etc.)
 - 🔌 **Provider Hub**: Auto-discover models with [models.dev](https://models.dev) integration
 - ⬇️ **Pull Ollama models** directly from Admin Panel with progress streaming (no CLI needed)
 - 🛡️ Admin panel for user management (CRUD, password reset, role changes)
@@ -188,6 +189,13 @@ docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
 ```
 
 See `docs/caddy-https-setup.md` and `docs/docker-setup.md` for details.
+
+### OIDC/SSO Configuration
+
+For enterprise single sign-on with any OIDC provider, see **[docs/OIDC_SETUP.md](docs/OIDC_SETUP.md)** for complete setup instructions supporting:
+- Keycloak, Okta, Auth0, Azure AD/Entra ID, Google Workspace
+- Automatic configuration discovery via `.well-known/openid-configuration`
+- Works alongside local username/password authentication
 
 ### Configuration
 

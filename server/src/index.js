@@ -92,6 +92,23 @@ initializeModelsDevCache()
     console.warn("  Server will continue, but provider/model data may be limited");
   });
 
+// Initialize OIDC if configured
+import("./lib/oidc.js")
+  .then(({ initializeOIDCClient, isOIDCEnabled }) => {
+    if (isOIDCEnabled()) {
+      console.log("Initializing OIDC client...");
+      return initializeOIDCClient().then(() => {
+        console.log("✓ OIDC client initialized");
+      });
+    } else {
+      console.log("OIDC not configured - skipping OIDC initialization");
+    }
+  })
+  .catch((error) => {
+    console.error("✗ Failed to initialize OIDC client:", error);
+    console.error("  Server will continue, but OIDC authentication will not be available");
+  });
+
 // Start server
 const port = parseInt(process.env.PORT || "3001", 10);
 
