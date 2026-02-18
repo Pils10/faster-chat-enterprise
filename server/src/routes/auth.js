@@ -264,3 +264,132 @@ authRouter.get("/session", async (c) => {
     return c.json({ error: "Session check failed" }, HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 });
+
+/**
+ * GET /api/auth/oidc/config
+ * Get OIDC configuration (whether OIDC is enabled)
+ */
+authRouter.get("/oidc/config", async (c) => {
+  const { getOIDCConfig } = await import("../lib/oidc.js");
+  return c.json(getOIDCConfig());
+});
+
+/**
+ * GET /api/auth/oidc/login
+ * Initiate OIDC login flow
+ */
+authRouter.get("/oidc/login", async (c) => {
+  try {
+    const { isOIDCEnabled, getAuthorizationUrl } = await import("../lib/oidc.js");
+    const { generators } = await import("openid-client");
+
+    if (!isOIDCEnabled()) {
+      return c.json({ error: "OIDC is not configured" }, HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Generate state and nonce for CSRF protection
+    const state = generators.state();
+    const nonce = generators.nonce();
+
+    const { authUrl, codeVerifier } = await getAuthorizationUrl(state, nonce);
+
+    // Store state, nonce, and code_verifier in cookie for callback verification
+    setCookie(c, "oidc_state", state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600, // 10 minutes
+      path: "/",
+    });
+
+    setCookie(c, "oidc_nonce", nonce, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600,
+      path: "/",
+    });
+
+    setCookie(c, "oidc_code_verifier", codeVerifier, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600,
+      path: "/",
+    });
+
+    return c.json({ authUrl });
+  } catch (error) {
+    console.error("OIDC login error:", error);
+    return c.json({ error: "Failed to initiate OIDC login" }, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+});
+
+/**
+ * GET /api/auth/oidc/callback
+ * Handle OIDC callback
+ */
+authRouter.get("/oidc/callback", async (c) => {
+  try {
+    const { isOIDCEnabled, handleCallback } = await import("../lib/oidc.js");
+
+    if (!isOIDCEnabled()) {
+      return c.json({ error: "OIDC is not configured" }, HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const params = c.req.query();
+    const storedState = getCookie(c, "oidc_state");
+    const storedNonce = getCookie(c, "oidc_nonce");
+    const storedCodeVerifier = getCookie(c, "oidc_code_verifier");
+
+    // Verify state to prevent CSRF
+    if (!storedState || params.state !== storedState) {
+      return c.json({ error: "Invalid state parameter" }, HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Clear OIDC cookies
+    deleteCookie(c, "oidc_state", { path: "/" });
+    deleteCookie(c, "oidc_nonce", { path: "/" });
+    deleteCookie(c, "oidc_code_verifier", { path: "/" });
+
+    // Exchange code for tokens
+    const userInfo = await handleCallback(params, storedCodeVerifier, storedNonce);
+
+    // Check if user exists by OIDC sub
+    let user = dbUtils.getUserByOIDCSub(userInfo.sub);
+
+    if (!user) {
+      // Create new user from OIDC info
+      const username = userInfo.preferredUsername || userInfo.email || userInfo.sub;
+      const userCount = dbUtils.getUserCount();
+      const role = userCount === 0 ? "admin" : "member"; // First user becomes admin
+
+      const userId = dbUtils.createOIDCUser(username, userInfo.sub, "oidc", role);
+      user = dbUtils.getUserById(userId);
+    }
+
+    // Create session
+    const { sessionId, expiresAt } = dbUtils.createSession(user.id);
+
+    // Set session cookie
+    setCookie(c, COOKIE_NAME, sessionId, COOKIE_OPTIONS);
+
+    // Return success with user info
+    return c.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+      },
+      session: {
+        expiresAt,
+      },
+    });
+  } catch (error) {
+    console.error("OIDC callback error:", error);
+    return c.json(
+      { error: "Authentication failed", details: error.message },
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
+});

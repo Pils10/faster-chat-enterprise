@@ -25,8 +25,10 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT,
     role TEXT NOT NULL DEFAULT 'member',
+    oidc_sub TEXT UNIQUE,
+    oidc_provider TEXT,
     created_at INTEGER NOT NULL,
     created_by INTEGER REFERENCES users(id)
   );
@@ -40,6 +42,7 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_users_oidc_sub ON users(oidc_sub);
 
   -- API Providers (OpenAI, Anthropic, Ollama, etc.)
   CREATE TABLE IF NOT EXISTS providers (
@@ -197,6 +200,22 @@ if (!modelColumnNames.includes("model_type")) {
 
 db.exec("CREATE INDEX IF NOT EXISTS idx_models_type ON models(model_type)");
 
+// Migration: Add OIDC fields to users table
+const userColumns = db.prepare("PRAGMA table_info(users)").all();
+const userColumnNames = userColumns.map((col) => col.name);
+
+if (!userColumnNames.includes("oidc_sub")) {
+  db.exec("ALTER TABLE users ADD COLUMN oidc_sub TEXT UNIQUE");
+}
+if (!userColumnNames.includes("oidc_provider")) {
+  db.exec("ALTER TABLE users ADD COLUMN oidc_provider TEXT");
+}
+
+// Make password_hash nullable for OIDC users (SQLite doesn't support ALTER COLUMN, so this is a note)
+// Existing password_hash NOT NULL constraint will be handled in application logic
+
+db.exec("CREATE INDEX IF NOT EXISTS idx_users_oidc_sub ON users(oidc_sub)");
+
 function parseFileMeta(file) {
   if (file && file.meta) {
     try {
@@ -270,6 +289,30 @@ export const dbUtils = {
     const stmt = db.prepare("SELECT COUNT(*) as count FROM users");
     const result = stmt.get();
     return result.count;
+  },
+
+  /**
+   * Get user by OIDC subject identifier
+   * @param {string} oidcSub - OIDC subject identifier
+   */
+  getUserByOIDCSub(oidcSub) {
+    const stmt = db.prepare("SELECT * FROM users WHERE oidc_sub = ?");
+    return stmt.get(oidcSub);
+  },
+
+  /**
+   * Create a new OIDC user
+   * @param {string} username
+   * @param {string} oidcSub - OIDC subject identifier
+   * @param {string} oidcProvider - OIDC provider name
+   * @param {string} role
+   */
+  createOIDCUser(username, oidcSub, oidcProvider, role = "member") {
+    const stmt = db.prepare(
+      "INSERT INTO users (username, password_hash, role, oidc_sub, oidc_provider, created_at, created_by) VALUES (?, NULL, ?, ?, ?, ?, NULL)"
+    );
+    const result = stmt.run(username, role, oidcSub, oidcProvider, Date.now());
+    return result.lastInsertRowid;
   },
 
   createSession(userId, expiresInMs = DB_CONSTANTS.DEFAULT_SESSION_EXPIRY_MS) {
